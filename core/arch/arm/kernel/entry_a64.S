@@ -164,6 +164,244 @@
 
 FUNC _start , :
 	/*
+	 * Early debug: write a character to PL011 UART at 0x3f201000.
+	 * Clobbers x16, x17 only (caller-saved, safe everywhere).
+	 */
+	.macro	earlyputc, ch
+	mov	x16, #0x1000
+	movk	x16, #0x3f20, lsl #16
+7710:
+	ldr	w17, [x16, #0x18]	/* UART_FR */
+	tbnz	w17, #5, 7710b		/* loop while TXFF set */
+	mov	w17, #\ch
+	str	w17, [x16]		/* UART_DR */
+	.endm
+
+	/*
+	 * Diagnostic: read raw DRAM at thread_core_local (0x1016c498)
+	 * before any _start code runs, to see if BL2 wrote the right value.
+	 * Expected: 0x101709f0.  Prints {XXXXXXXX} with hex value.
+	 */
+	earlyputc 0x7b			/* '{' */
+	mov	x14, #0xc498
+	movk	x14, #0x1016, lsl #16	/* x14 = 0x1016c498 */
+	ldr	x18, [x14]		/* raw DRAM read */
+
+	lsr	x15, x18, #28
+	and	w15, w15, #0xf
+	cmp	w15, #10
+	blt	90f
+	add	w15, w15, #(0x41 - 10)
+	b	91f
+90:	add	w15, w15, #0x30
+91:	mov	x16, #0x1000
+	movk	x16, #0x3f20, lsl #16
+92:	ldr	w17, [x16, #0x18]
+	tbnz	w17, #5, 92b
+	str	w15, [x16]
+
+	lsr	x15, x18, #24
+	and	w15, w15, #0xf
+	cmp	w15, #10
+	blt	90f
+	add	w15, w15, #(0x41 - 10)
+	b	91f
+90:	add	w15, w15, #0x30
+91:	mov	x16, #0x1000
+	movk	x16, #0x3f20, lsl #16
+92:	ldr	w17, [x16, #0x18]
+	tbnz	w17, #5, 92b
+	str	w15, [x16]
+
+	lsr	x15, x18, #20
+	and	w15, w15, #0xf
+	cmp	w15, #10
+	blt	90f
+	add	w15, w15, #(0x41 - 10)
+	b	91f
+90:	add	w15, w15, #0x30
+91:	mov	x16, #0x1000
+	movk	x16, #0x3f20, lsl #16
+92:	ldr	w17, [x16, #0x18]
+	tbnz	w17, #5, 92b
+	str	w15, [x16]
+
+	lsr	x15, x18, #16
+	and	w15, w15, #0xf
+	cmp	w15, #10
+	blt	90f
+	add	w15, w15, #(0x41 - 10)
+	b	91f
+90:	add	w15, w15, #0x30
+91:	mov	x16, #0x1000
+	movk	x16, #0x3f20, lsl #16
+92:	ldr	w17, [x16, #0x18]
+	tbnz	w17, #5, 92b
+	str	w15, [x16]
+
+	lsr	x15, x18, #12
+	and	w15, w15, #0xf
+	cmp	w15, #10
+	blt	90f
+	add	w15, w15, #(0x41 - 10)
+	b	91f
+90:	add	w15, w15, #0x30
+91:	mov	x16, #0x1000
+	movk	x16, #0x3f20, lsl #16
+92:	ldr	w17, [x16, #0x18]
+	tbnz	w17, #5, 92b
+	str	w15, [x16]
+
+	lsr	x15, x18, #8
+	and	w15, w15, #0xf
+	cmp	w15, #10
+	blt	90f
+	add	w15, w15, #(0x41 - 10)
+	b	91f
+90:	add	w15, w15, #0x30
+91:	mov	x16, #0x1000
+	movk	x16, #0x3f20, lsl #16
+92:	ldr	w17, [x16, #0x18]
+	tbnz	w17, #5, 92b
+	str	w15, [x16]
+
+	lsr	x15, x18, #4
+	and	w15, w15, #0xf
+	cmp	w15, #10
+	blt	90f
+	add	w15, w15, #(0x41 - 10)
+	b	91f
+90:	add	w15, w15, #0x30
+91:	mov	x16, #0x1000
+	movk	x16, #0x3f20, lsl #16
+92:	ldr	w17, [x16, #0x18]
+	tbnz	w17, #5, 92b
+	str	w15, [x16]
+
+	and	w15, w18, #0xf
+	cmp	w15, #10
+	blt	90f
+	add	w15, w15, #(0x41 - 10)
+	b	91f
+90:	add	w15, w15, #0x30
+91:	mov	x16, #0x1000
+	movk	x16, #0x3f20, lsl #16
+92:	ldr	w17, [x16, #0x18]
+	tbnz	w17, #5, 92b
+	str	w15, [x16]
+
+	earlyputc 0x7d			/* '}' */
+	earlyputc 0x7b			/* '{' */
+	mov	x14, #0xc4a0
+	movk	x14, #0x1016, lsl #16	/* x14 = 0x1016c498 */
+	ldr	x18, [x14]		/* raw DRAM read */
+
+	lsr	x15, x18, #28
+	and	w15, w15, #0xf
+	cmp	w15, #10
+	blt	90f
+	add	w15, w15, #(0x41 - 10)
+	b	91f
+90:	add	w15, w15, #0x30
+91:	mov	x16, #0x1000
+	movk	x16, #0x3f20, lsl #16
+92:	ldr	w17, [x16, #0x18]
+	tbnz	w17, #5, 92b
+	str	w15, [x16]
+
+	lsr	x15, x18, #24
+	and	w15, w15, #0xf
+	cmp	w15, #10
+	blt	90f
+	add	w15, w15, #(0x41 - 10)
+	b	91f
+90:	add	w15, w15, #0x30
+91:	mov	x16, #0x1000
+	movk	x16, #0x3f20, lsl #16
+92:	ldr	w17, [x16, #0x18]
+	tbnz	w17, #5, 92b
+	str	w15, [x16]
+
+	lsr	x15, x18, #20
+	and	w15, w15, #0xf
+	cmp	w15, #10
+	blt	90f
+	add	w15, w15, #(0x41 - 10)
+	b	91f
+90:	add	w15, w15, #0x30
+91:	mov	x16, #0x1000
+	movk	x16, #0x3f20, lsl #16
+92:	ldr	w17, [x16, #0x18]
+	tbnz	w17, #5, 92b
+	str	w15, [x16]
+
+	lsr	x15, x18, #16
+	and	w15, w15, #0xf
+	cmp	w15, #10
+	blt	90f
+	add	w15, w15, #(0x41 - 10)
+	b	91f
+90:	add	w15, w15, #0x30
+91:	mov	x16, #0x1000
+	movk	x16, #0x3f20, lsl #16
+92:	ldr	w17, [x16, #0x18]
+	tbnz	w17, #5, 92b
+	str	w15, [x16]
+
+	lsr	x15, x18, #12
+	and	w15, w15, #0xf
+	cmp	w15, #10
+	blt	90f
+	add	w15, w15, #(0x41 - 10)
+	b	91f
+90:	add	w15, w15, #0x30
+91:	mov	x16, #0x1000
+	movk	x16, #0x3f20, lsl #16
+92:	ldr	w17, [x16, #0x18]
+	tbnz	w17, #5, 92b
+	str	w15, [x16]
+
+	lsr	x15, x18, #8
+	and	w15, w15, #0xf
+	cmp	w15, #10
+	blt	90f
+	add	w15, w15, #(0x41 - 10)
+	b	91f
+90:	add	w15, w15, #0x30
+91:	mov	x16, #0x1000
+	movk	x16, #0x3f20, lsl #16
+92:	ldr	w17, [x16, #0x18]
+	tbnz	w17, #5, 92b
+	str	w15, [x16]
+
+	lsr	x15, x18, #4
+	and	w15, w15, #0xf
+	cmp	w15, #10
+	blt	90f
+	add	w15, w15, #(0x41 - 10)
+	b	91f
+90:	add	w15, w15, #0x30
+91:	mov	x16, #0x1000
+	movk	x16, #0x3f20, lsl #16
+92:	ldr	w17, [x16, #0x18]
+	tbnz	w17, #5, 92b
+	str	w15, [x16]
+
+	and	w15, w18, #0xf
+	cmp	w15, #10
+	blt	90f
+	add	w15, w15, #(0x41 - 10)
+	b	91f
+90:	add	w15, w15, #0x30
+91:	mov	x16, #0x1000
+	movk	x16, #0x3f20, lsl #16
+92:	ldr	w17, [x16, #0x18]
+	tbnz	w17, #5, 92b
+	str	w15, [x16]
+
+	earlyputc 0x7d			/* '}' */
+
+	/*
 	 * Temporary copy of boot argument registers, will be passed to
 	 * boot_save_args() further down.
 	 */
@@ -181,6 +419,47 @@ FUNC _start , :
 #endif
 
 	set_sctlr_el1
+	isb
+
+	/*
+	 * Full D-cache clean+invalidate by set/way.
+	 * BL2 may have loaded the OP-TEE image with D-cache on at EL3/EL1
+	 * without flushing to DRAM.  A by-VA flush from EL1 may miss
+	 * entries created at EL3, so we walk every set/way instead.
+	 */
+	mrs	x0, clidr_el1
+	and	w3, w0, #0x07000000	/* LoC (Level of Coherence) */
+	lsr	w3, w3, #23
+	cbz	w3, 5f			/* no caches */
+	mov	w10, #0			/* cache level 0 */
+1:	add	w2, w10, w10, lsr #1	/* w2 = level * 3/2 */
+	lsr	w1, w0, w2
+	and	w1, w1, #7		/* cache type at this level */
+	cmp	w1, #2			/* data or unified? */
+	b.lt	4f			/* skip if no data cache */
+	msr	csselr_el1, x10
+	isb
+	mrs	x1, ccsidr_el1
+	and	w2, w1, #7		/* log2(line)-4 */
+	add	w2, w2, #4		/* log2(line) = shift for set */
+	ubfx	w4, w1, #3, #10	/* associativity - 1 */
+	clz	w5, w4			/* way shift */
+	ubfx	w7, w1, #13, #15	/* num sets - 1 */
+2:	mov	w8, w4			/* way counter */
+3:	lsl	w9, w8, w5		/* way << way_shift */
+	lsl	w6, w7, w2		/* set << set_shift */
+	orr	w9, w10, w9		/* add level */
+	orr	w9, w9, w6		/* set/way/level word */
+	dc	cisw, x9		/* clean+invalidate */
+	subs	w8, w8, #1
+	b.ge	3b
+	subs	w7, w7, #1
+	b.ge	2b
+4:	add	w10, w10, #2		/* next level */
+	cmp	w3, w10
+	b.gt	1b
+5:	msr	csselr_el1, xzr	/* restore to level 0 */
+	dsb	sy
 	isb
 
 #ifdef CFG_WITH_PAGER
@@ -242,6 +521,8 @@ copy_init:
 	b.gt	copy_init
 #endif
 
+	//earlyputc 0x32			/* '2' - after copy_init */
+
 	/*
 	 * Clear .bss, this code obviously depends on the linker keeping
 	 * start/end of .bss at least 8 byte aligned.
@@ -252,6 +533,8 @@ clear_bss:
 	str	xzr, [x0], #8
 	cmp	x0, x1
 	b.lt	clear_bss
+
+	//earlyputc 0x33			/* '3' - after BSS clear */
 
 #ifdef CFG_NS_VIRTUALIZATION
 	/*
@@ -265,6 +548,7 @@ clear_nex_bss:
 	cmp	x0, x1
 	b.lt	clear_nex_bss
 #endif
+	//earlyputc 0x33			/* '3' - after BSS clear */
 
 #if defined(CFG_CORE_PHYS_RELOCATABLE)
 	/*
@@ -282,6 +566,7 @@ clear_nex_bss:
 	bl	relocate
 1:
 #endif
+	//earlyputc 0x33			/* '3' - after BSS clear */
 
 #ifdef CFG_CORE_SANITIZE_KADDRESS
 	/* Initialize the entire shadow area with no access */
@@ -307,9 +592,11 @@ clear_nex_bss:
 	bls	1b
 #endif
 #endif
+	//earlyputc 0x33			/* '3' - after BSS clear */
 
 	/* Setup SP_EL0 and SP_EL1, SP will be set to SP_EL0 */
 #if defined(CFG_DYN_CONFIG)
+	//earlyputc 0x46			/* 'A' - DYN_CONFIG path start */
 	/*
 	 * Point SP_EL0 to a temporary stack with the at the end of mapped
 	 * core memory.
@@ -320,11 +607,17 @@ clear_nex_bss:
 	ldr	x0, [x0]
 	sub	x1, x0, #THREAD_BOOT_INIT_TMP_ALLOC
 
+
 	/* Clear the allocated struct thread_core_local */
 	add	x2, x1, #THREAD_CORE_LOCAL_SIZE
+	earlyputc 0x43			/* 'B' - thread_core_local cleared */
 1:	stp	xzr, xzr, [x2, #-16]!
+	earlyputc 0x44			/* 'B' - thread_core_local cleared */
 	cmp	x2, x1
+	earlyputc 0x43			/* 'B' - thread_core_local cleared */
 	bgt	1b
+
+	earlyputc 0x42			/* 'B' - thread_core_local cleared */
 
 	mov	x2, #THREAD_ID_INVALID
 	str	x2, [x1, #THREAD_CORE_LOCAL_CURR_THREAD]
@@ -338,6 +631,9 @@ clear_nex_bss:
 	mov	sp, x1
 	msr	spsel, #0
 	mov	sp, x0
+
+	earlyputc 0x43			/* 'C' - stacks set */
+
 	/*
 	 * Record a single core, to be changed later before secure world
 	 * boot is done.
@@ -348,13 +644,149 @@ clear_nex_bss:
 	mov	x0, #1
 	str	x0, [x2]
 #else
-	set_sp
+	earlyputc 0x41			/* 'A' - before __get_core_pos */
+	bl	__get_core_pos
+	earlyputc 0x42			/* 'B' - after __get_core_pos */
+	cmp	x0, #CFG_TEE_CORE_NB_CORE
+	/* Unsupported CPU, park it before it breaks something */
+	bge	unhandled_cpu
+	add	x0, x0, #1
+	adr_l	x1, stack_tmp_stride
+	ldr	w1, [x1]
+	mul	x1, x0, x1
+
+	/* x0 = stack_tmp - STACK_TMP_GUARD */
+	adr_l	x2, stack_tmp_rel
+	ldr	w0, [x2]
+	add	x0, x0, x2
+
+	msr	spsel, #0
+	add	sp, x1, x0
+	earlyputc 0x43			/* 'C' - SP_EL0 set */
+	bl	thread_get_core_local
+	msr	spsel, #1
+	mov	sp, x0
+	msr	spsel, #0
+	earlyputc 0x44			/* 'D' - SP_EL1 set */
 
 	/* Initialize thread_core_local[current_cpu_id] for early boot */
 	bl	thread_get_abt_stack
 	mov	x1, sp
 	msr	spsel, #1
+	earlyputc 0x44			/* 'D' - SP_EL1 set */
+
+  /* Diagnostic: print SP_EL1 value as hex nibbles [x] */
+  earlyputc 0x5b                     /* '[' */
+  mov        x18, sp
+  /* print nibbles 7..0 (top 32 bits of address) */
+  lsr        x15, x18, #28
+  and        w15, w15, #0xf
+  cmp        w15, #10
+  blt        80f
+  add        w15, w15, #(0x41 - 10)
+  b  81f
+80:  add     w15, w15, #0x30
+81:  mov     x16, #0x1000
+  movk       x16, #0x3f20, lsl #16
+82:  ldr     w17, [x16, #0x18]
+  tbnz       w17, #5, 82b
+  str        w15, [x16]
+
+  lsr        x15, x18, #24
+  and        w15, w15, #0xf
+  cmp        w15, #10
+  blt        80f
+  add        w15, w15, #(0x41 - 10)
+  b  81f
+80:  add     w15, w15, #0x30
+81:  mov     x16, #0x1000
+  movk       x16, #0x3f20, lsl #16
+82:  ldr     w17, [x16, #0x18]
+  tbnz       w17, #5, 82b
+  str        w15, [x16]
+
+  lsr        x15, x18, #20
+  and        w15, w15, #0xf
+  cmp        w15, #10
+  blt        80f
+  add        w15, w15, #(0x41 - 10)
+  b  81f
+80:  add     w15, w15, #0x30
+81:  mov     x16, #0x1000
+  movk       x16, #0x3f20, lsl #16
+82:  ldr     w17, [x16, #0x18]
+  tbnz       w17, #5, 82b
+  str        w15, [x16]
+
+  lsr        x15, x18, #16
+  and        w15, w15, #0xf
+  cmp        w15, #10
+  blt        80f
+  add        w15, w15, #(0x41 - 10)
+  b  81f
+80:  add     w15, w15, #0x30
+81:  mov     x16, #0x1000
+  movk       x16, #0x3f20, lsl #16
+82:  ldr     w17, [x16, #0x18]
+  tbnz       w17, #5, 82b
+  str        w15, [x16]
+
+  lsr        x15, x18, #12
+  and        w15, w15, #0xf
+  cmp        w15, #10
+  blt        80f
+  add        w15, w15, #(0x41 - 10)
+  b  81f
+80:  add     w15, w15, #0x30
+81:  mov     x16, #0x1000
+  movk       x16, #0x3f20, lsl #16
+82:  ldr     w17, [x16, #0x18]
+  tbnz       w17, #5, 82b
+  str        w15, [x16]
+
+  lsr        x15, x18, #8
+  and        w15, w15, #0xf
+  cmp        w15, #10
+  blt        80f
+  add        w15, w15, #(0x41 - 10)
+  b  81f
+80:  add     w15, w15, #0x30
+81:  mov     x16, #0x1000
+  movk       x16, #0x3f20, lsl #16
+82:  ldr     w17, [x16, #0x18]
+  tbnz       w17, #5, 82b
+  str        w15, [x16]
+
+  lsr        x15, x18, #4
+  and        w15, w15, #0xf
+  cmp        w15, #10
+  blt        80f
+  add        w15, w15, #(0x41 - 10)
+  b  81f
+80:  add     w15, w15, #0x30
+81:  mov     x16, #0x1000
+  movk       x16, #0x3f20, lsl #16
+82:  ldr     w17, [x16, #0x18]
+  tbnz       w17, #5, 82b
+  str        w15, [x16]
+
+  and        w15, w18, #0xf
+  cmp        w15, #10
+  blt        80f
+  add        w15, w15, #(0x41 - 10)
+  b  81f
+80:  add     w15, w15, #0x30
+81:  mov     x16, #0x1000
+  movk       x16, #0x3f20, lsl #16
+82:  ldr     w17, [x16, #0x18]
+  tbnz       w17, #5, 82b
+  str        w15, [x16]
+
+  earlyputc 0x5d                     /* ']' */
+
+
 	str	x1, [sp, #THREAD_CORE_LOCAL_TMP_STACK_VA_END]
+	earlyputc 0x44			/* 'D' - SP_EL1 set */
 	str	x0, [sp, #THREAD_CORE_LOCAL_ABT_STACK_VA_END]
 	mov	x0, #THREAD_ID_INVALID
 	str	x0, [sp, #THREAD_CORE_LOCAL_CURR_THREAD]
@@ -363,8 +795,12 @@ clear_nex_bss:
 	msr	spsel, #0
 #endif
 
+	earlyputc 0x34			/* '4' - after stack setup */
+
 	/* Enable aborts now that we can receive exceptions */
 	msr	daifclr, #DAIFBIT_ABT
+
+	earlyputc 0x35			/* '5' - after daifclr */
 
 	/*
 	 * Invalidate dcache for all memory used during initialization to
@@ -378,8 +814,12 @@ clear_nex_bss:
 	sub	x1, x1, x0
 	bl	dcache_cleaninv_range
 
+	earlyputc 0x36			/* '6' - after dcache inv */
+
 	/* Enable Console */
 	bl	console_init
+
+	earlyputc 0x37			/* '7' - after console_init */
 
 	mov	x0, x19
 	mov	x1, x20

@@ -40,10 +40,10 @@
 #endif
 #endif /* ARM64 */
 
-/* 16550 UART */
-#define CONSOLE_UART_BASE	0x3f215040 /* UART0 */
+/* PL011 UART on GPIO 14/15 (dtoverlay=disable-bt routes PL011 here) */
+#define CONSOLE_UART_BASE	0x3f201000 /* PL011 UART0 */
 #define CONSOLE_BAUDRATE	115200
-#define CONSOLE_UART_CLK_IN_HZ	19200000
+#define CONSOLE_UART_CLK_IN_HZ	48000000
 
 /*
  * RPi memory map

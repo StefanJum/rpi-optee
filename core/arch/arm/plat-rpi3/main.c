@@ -27,7 +27,7 @@
  */
 
 #include <console.h>
-#include <drivers/serial8250_uart.h>
+#include <drivers/pl011.h>
 #include <kernel/panic.h>
 #include <mm/core_memprot.h>
 #include <mm/tee_pager.h>
@@ -35,13 +35,13 @@
 #include <stdint.h>
 
 register_phys_mem_pgdir(MEM_AREA_IO_NSEC,
-			CONSOLE_UART_BASE, SERIAL8250_UART_REG_SIZE);
+			CONSOLE_UART_BASE, PL011_REG_SIZE);
 
-static struct serial8250_uart_data console_data;
+static struct pl011_data console_data;
 
 void plat_console_init(void)
 {
-	serial8250_uart_init(&console_data, CONSOLE_UART_BASE,
-			     CONSOLE_UART_CLK_IN_HZ, CONSOLE_BAUDRATE);
+	pl011_init(&console_data, CONSOLE_UART_BASE,
+		   CONSOLE_UART_CLK_IN_HZ, CONSOLE_BAUDRATE);
 	register_serial_console(&console_data.chip);
 }
