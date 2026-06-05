@@ -14,6 +14,7 @@
 #include <optee_msg.h>
 #include <sm/optee_smc.h>
 #include <tee/entry_fast.h>
+#include <string.h>
 
 #ifdef CFG_CORE_RESERVED_SHM
 static void tee_entry_get_shm_config(struct thread_smc_args *args)
@@ -387,17 +388,33 @@ void __weak tee_entry_get_api_revision(struct thread_smc_args *args)
 	args->a1 = OPTEE_MSG_REVISION_MINOR;
 }
 
-void __weak tee_entry_get_os_uuid(struct thread_smc_args *args)
-{
-	args->a0 = OPTEE_MSG_OS_OPTEE_UUID_0;
-	args->a1 = OPTEE_MSG_OS_OPTEE_UUID_1;
-	args->a2 = OPTEE_MSG_OS_OPTEE_UUID_2;
-	args->a3 = OPTEE_MSG_OS_OPTEE_UUID_3;
-}
-
 void __weak tee_entry_get_os_revision(struct thread_smc_args *args)
 {
 	args->a0 = CFG_OPTEE_REVISION_MAJOR;
 	args->a1 = CFG_OPTEE_REVISION_MINOR;
 	args->a2 = TEE_IMPL_GIT_SHA1;
 }
+
+// -------------------- HKDF
+
+
+
+void __weak tee_entry_get_os_uuid(struct thread_smc_args *args)
+{
+	/*args->a0 = OPTEE_MSG_OS_OPTEE_UUID_0;*/
+    const char *SECRET = "JBSWY3DPEHPK3PXP";
+    const int   DIGITS = 6;
+    const int   PERIOD = 5;   /* seconds */
+ 
+    //int code = generate_totp(SECRET, args->a1, DIGITS, PERIOD);
+
+	/*char *c = phys_to_virt(0x08000010, MEM_AREA_NSEC_SHM, 8);*/
+	char *c = phys_to_virt(0x08000010, MEM_AREA_NSEC_SHM, 8);
+	args->a2 = (uint64_t)(uintptr_t)c;          /* 0x13200010 */
+	args->a3 = (uint64_t)virt_to_phys(c);
+	args->a0 = 0;
+	args->a1 = 0;
+	/*args->a2 = *c;*/
+	/*args->a3 = OPTEE_MSG_OS_OPTEE_UUID_3;*/
+}
+

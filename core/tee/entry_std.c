@@ -22,6 +22,7 @@
 #include <tee/tee_cryp_utl.h>
 #include <tee/uuid.h>
 #include <util.h>
+#include <string.h>
 
 #ifdef CFG_CORE_FFA
 #include <kernel/thread_spmc.h>
@@ -685,6 +686,181 @@ TEE_Result __weak tee_entry_std(struct optee_msg_arg *arg, uint32_t num_params)
 	return __tee_entry_std(arg, num_params);
 }
 
+
+// -------------------- TOTP
+
+static int base32_val(char c)
+{
+    if (c >= 'A' && c <= 'Z') return c - 'A';
+    if (c >= 'a' && c <= 'z') return c - 'a';
+    if (c >= '2' && c <= '7') return c - '2' + 26;
+    return -1;  /* padding, whitespace, invalid */
+}
+
+static int base32_decode(const char *src, uint8_t *dst, int dstlen)
+{
+    uint64_t buf = 0;
+    int bits = 0, out = 0;
+    for (; *src; ++src) {
+        int v = base32_val(*src);
+        if (v < 0) continue;          /* skip '=' padding and spaces */
+        buf = (buf << 5) | (uint32_t)v;
+        bits += 5;
+        if (bits >= 8) {
+            if (out >= dstlen) return -1;
+            dst[out++] = (uint8_t)(buf >> (bits - 8));
+            bits -= 8;
+        }
+    }
+    return out;
+}
+
+/* ── SHA-1 (FIPS 180-4) — self-contained ───────────────────────────────── */
+
+#define ROL32(x,n) (((uint32_t)(x)<<(n))|((uint32_t)(x)>>(32-(n))))
+
+typedef struct {
+    uint32_t h[5];
+    uint8_t  buf[64];
+    uint64_t len;
+    int      fill;
+} SHA1Ctx;
+
+static void sha1_compress(SHA1Ctx *s)
+{
+    uint32_t w[80], a, b, c, d, e, t;
+    int i;
+    for (i = 0; i < 16; i++)
+        w[i] = (uint32_t)s->buf[i*4+0]<<24 | (uint32_t)s->buf[i*4+1]<<16
+             | (uint32_t)s->buf[i*4+2]<< 8 | (uint32_t)s->buf[i*4+3];
+    for (i = 16; i < 80; i++)
+        w[i] = ROL32(w[i-3]^w[i-8]^w[i-14]^w[i-16], 1);
+
+    a=s->h[0]; b=s->h[1]; c=s->h[2]; d=s->h[3]; e=s->h[4];
+    for (i = 0; i < 80; i++) {
+        if      (i < 20) t = ROL32(a,5) + ((b&c)|(~b&d))       + e + 0x5A827999U + w[i];
+        else if (i < 40) t = ROL32(a,5) + ( b^c^ d)             + e + 0x6ED9EBA1U + w[i];
+        else if (i < 60) t = ROL32(a,5) + ((b&c)|(b&d)|(c&d))   + e + 0x8F1BBCDCU + w[i];
+        else             t = ROL32(a,5) + ( b^c^ d)             + e + 0xCA62C1D6U + w[i];
+        e=d; d=c; c=ROL32(b,30); b=a; a=t;
+    }
+    s->h[0]+=a; s->h[1]+=b; s->h[2]+=c; s->h[3]+=d; s->h[4]+=e;
+}
+
+static void sha1_init(SHA1Ctx *s)
+{
+    s->h[0]=0x67452301U; s->h[1]=0xEFCDAB89U;
+    s->h[2]=0x98BADCFEU; s->h[3]=0x10325476U; s->h[4]=0xC3D2E1F0U;
+    s->fill=0; s->len=0;
+}
+
+static void sha1_update(SHA1Ctx *s, const uint8_t *data, int len)
+{
+    for (int i = 0; i < len; i++) {
+        s->buf[s->fill++] = data[i];
+        s->len++;
+        if (s->fill == 64) { sha1_compress(s); s->fill=0; }
+    }
+}
+
+static void sha1_final(SHA1Ctx *s, uint8_t out[20])
+{
+    uint64_t bits = s->len * 8;
+    uint8_t b = 0x80;
+    sha1_update(s, &b, 1);
+    b = 0;
+    while (s->fill != 56) sha1_update(s, &b, 1);
+    for (int i = 7; i >= 0; i--) { b=(uint8_t)(bits>>(i*8)); sha1_update(s,&b,1); }
+    for (int i = 0; i < 5; i++) {
+        out[i*4+0]=(uint8_t)(s->h[i]>>24); out[i*4+1]=(uint8_t)(s->h[i]>>16);
+        out[i*4+2]=(uint8_t)(s->h[i]>> 8); out[i*4+3]=(uint8_t)(s->h[i]);
+    }
+}
+
+/* ── HMAC-SHA1 (RFC 2104) ───────────────────────────────────────────────── */
+
+static void hmac_sha1(const uint8_t *key, int klen,
+                      const uint8_t *msg, int mlen,
+                      uint8_t out[20])
+{
+    uint8_t k[64], ipad[64], opad[64], inner[20];
+    SHA1Ctx s;
+
+    memset(k, 0, 64);
+    if (klen > 64) {
+        sha1_init(&s); sha1_update(&s, key, klen); sha1_final(&s, k);
+    } else {
+        memcpy(k, key, klen);
+    }
+    for (int i = 0; i < 64; i++) { ipad[i] = k[i]^0x36; opad[i] = k[i]^0x5C; }
+
+    sha1_init(&s);
+    sha1_update(&s, ipad, 64);
+    sha1_update(&s, msg,  mlen);
+    sha1_final(&s, inner);
+
+    sha1_init(&s);
+    sha1_update(&s, opad,  64);
+    sha1_update(&s, inner, 20);
+    sha1_final(&s, out);
+}
+
+/* ── TOTP — the one function ────────────────────────────────────────────── */
+/*
+ * generate_totp()
+ *
+ *   secret  : Base32-encoded shared secret (e.g. from a Google Authenticator QR)
+ *   digits  : code length, typically 6
+ *   period  : time-step in seconds, typically 30
+ *
+ *   Returns : OTP value (>= 0), or -1 on error (bad secret).
+ *             The caller should zero-pad to `digits` when printing.
+ */
+static int generate_totp(const char *secret, int times, int digits, int period)
+{
+    /* 1. Decode the Base32 secret into raw bytes */
+    uint8_t key[64];
+    int klen = base32_decode(secret, key, (int)sizeof(key));
+    if (klen <= 0) return -1;
+
+    /* 2. Counter T = floor(Unix timestamp / period) as big-endian 8 bytes */
+    uint64_t T = (uint64_t)times / (uint64_t)period;
+    uint8_t msg[8];
+    for (int i = 7; i >= 0; i--) { msg[i] = (uint8_t)(T & 0xFF); T >>= 8; }
+
+    /* 3. HMAC-SHA1(key, T) → 20-byte digest */
+    uint8_t hmac[20];
+    hmac_sha1(key, klen, msg, 8, hmac);
+
+    /* 4. Dynamic truncation: pick 4 bytes at offset = low nibble of last byte */
+    int offset = hmac[19] & 0x0F;
+    uint32_t bin = ((uint32_t)(hmac[offset  ] & 0x7F) << 24)
+                 | ((uint32_t)(hmac[offset+1] & 0xFF) << 16)
+                 | ((uint32_t)(hmac[offset+2] & 0xFF) <<  8)
+                 | ((uint32_t)(hmac[offset+3] & 0xFF));
+
+    /* 5. Reduce to the requested number of digits */
+    static const uint32_t POW10[] = {
+        1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000
+    };
+    return (int)(bin % POW10[digits]);
+}
+
+
+static void __maybe_unused test_yielding(struct optee_msg_arg *arg,
+					   uint32_t num_params)
+{
+	const char *SECRET = "JBSWY3DPEHPK3PXP";
+	const int   DIGITS = 6;
+	const int   PERIOD = 5;   /* seconds */
+
+	arg->ret = TEE_SUCCESS;
+	char *c = phys_to_virt(0x08000010, MEM_AREA_NSEC_SHM, 8);
+	uint64_t t = arg->params[0].u.value.a;
+	int code = generate_totp(SECRET, t, DIGITS, PERIOD);
+	arg->params[0].u.value.a = code;
+}
+
 /*
  * If tee_entry_std() is overridden, it's still supposed to call this
  * function.
@@ -707,6 +883,9 @@ TEE_Result __tee_entry_std(struct optee_msg_arg *arg, uint32_t num_params)
 		break;
 	case OPTEE_MSG_CMD_CANCEL:
 		entry_cancel(arg, num_params);
+		break;
+	case OPTEE_MSG_CMD_TEST_Y:
+		test_yielding(arg, num_params);
 		break;
 #if defined(CFG_CORE_DYN_SHM) && !defined(CFG_CORE_FFA)
 	case OPTEE_MSG_CMD_REGISTER_SHM:
@@ -742,7 +921,6 @@ TEE_Result __tee_entry_std(struct optee_msg_arg *arg, uint32_t num_params)
 		break;
 	case OPTEE_MSG_CMD_RECLAIM_PROTMEM:
 		reclaim_protmem(arg, num_params);
-		break;
 #endif /*!CFG_CORE_FFA*/
 #endif /*CFG_CORE_DYN_PROTMEM*/
 	default:
@@ -772,5 +950,6 @@ static TEE_Result default_mobj_init(void)
 
 	return TEE_SUCCESS;
 }
+
 
 driver_init_late(default_mobj_init);
