@@ -407,6 +407,7 @@ struct optee_msg_arg {
 #define OPTEE_MSG_CMD_GET_PROTMEM_CONFIG	U(10)
 #define OPTEE_MSG_CMD_ASSIGN_PROTMEM		U(11)
 #define OPTEE_MSG_CMD_TEST_Y		U(12)
+#define OPTEE_MSG_CMD_RSA_DEC         U(13)
 #define OPTEE_MSG_FUNCID_CALL_WITH_ARG		U(0x0004)
 
 #endif /* __OPTEE_MSG_H */
